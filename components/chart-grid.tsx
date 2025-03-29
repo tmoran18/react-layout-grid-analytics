@@ -14,6 +14,35 @@ import { Button } from "./ui/button";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
+const LAYOUT_STORAGE_KEY = "dashboard-layout";
+
+type BreakpointKey = "lg" | "md" | "sm";
+
+// Load saved layout from localStorage or use default
+const loadSavedLayout = () => {
+  try {
+    if (typeof window === "undefined") return defaultLayouts;
+
+    const savedLayout = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    if (!savedLayout) return defaultLayouts;
+
+    const parsed = JSON.parse(savedLayout) as Layouts;
+    // Ensure all layouts have the required properties
+    (["lg", "md", "sm"] as BreakpointKey[]).forEach((breakpoint) => {
+      if (!parsed[breakpoint]) parsed[breakpoint] = defaultLayouts[breakpoint];
+      parsed[breakpoint] = parsed[breakpoint].map((item: Layout) => ({
+        ...defaultLayouts[breakpoint].find((def: Layout) => def.i === item.i),
+        ...item,
+      }));
+    });
+
+    return parsed;
+  } catch (error) {
+    console.error("Error loading layout:", error);
+    return defaultLayouts;
+  }
+};
+
 const defaultLayouts = {
   lg: [
     { i: "bar", x: 0, y: 0, w: 6, h: 20, minW: 4, maxW: 12, minH: 15, maxH: 30 },
@@ -51,11 +80,24 @@ const customGridStyles = `
 `;
 
 export function ChartGrid() {
+  const [mounted, setMounted] = React.useState(false);
   const [layouts, setLayouts] = React.useState<Layouts>(defaultLayouts);
 
+  // Load layout after mount to avoid hydration mismatch
+  React.useEffect(() => {
+    setMounted(true);
+    const savedLayout = loadSavedLayout();
+    setLayouts(savedLayout);
+  }, []);
+
   const onLayoutChange = (currentLayout: Layout[], allLayouts: Layouts) => {
+    if (!mounted) return;
     setLayouts(allLayouts);
+    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(allLayouts));
   };
+
+  // Prevent layout from rendering until after mount
+  if (!mounted) return null;
 
   return (
     <div className="relative">
